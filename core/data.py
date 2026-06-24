@@ -1,3 +1,4 @@
+import os
 import time
 
 import ccxt
@@ -5,12 +6,16 @@ import pandas as pd
 
 from config import TIMEFRAME, LOOKBACK_DAYS
 
+# KuCoin works from any IP worldwide including cloud servers.
+# Override with EXCHANGE env var if needed, e.g. EXCHANGE=binanceus for local.
+_EXCHANGE_ID = os.environ.get("EXCHANGE", "kucoin")
+
 
 def fetch_ohlcv(symbol: str, timeframe: str = TIMEFRAME, days: int = LOOKBACK_DAYS) -> pd.DataFrame:
-    """Fetch OHLCV candles from Binance (public endpoint, no API key required)."""
-    exchange = ccxt.binanceus({"enableRateLimit": True})
+    """Fetch OHLCV candles from the configured exchange (no API key required)."""
+    exchange: ccxt.Exchange = getattr(ccxt, _EXCHANGE_ID)({"enableRateLimit": True})
     since_ms = exchange.milliseconds() - days * 24 * 60 * 60 * 1000
-    limit = 1000  # Binance max per request
+    limit = 1000
 
     all_candles: list = []
     fetch_since = since_ms

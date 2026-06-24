@@ -13,7 +13,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 import numpy as np
 import pandas as pd
-from fastapi import FastAPI, Query
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
@@ -132,7 +132,10 @@ def api_backtest(
     end: int = Query(None),     # ms epoch
 ):
     strat = STRATEGY_MAP.get(strategy, HHHLLStrategy)()
-    full_df = _get_ohlcv(symbol)
+    try:
+        full_df = _get_ohlcv(symbol)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Exchange error fetching {symbol}: {exc}")
 
     # Window bounds — default to full dataset
     start_ts = pd.Timestamp(start, unit="ms", tz="UTC") if start else full_df.index[0]

@@ -243,6 +243,8 @@ tbody td:first-child { text-align: left; color: var(--dim); }
   </div>
 </div>
 
+<div id="errorBanner" style="display:none; margin:16px 24px; padding:12px 16px; background:rgba(255,56,96,0.12); border:1px solid rgba(255,56,96,0.4); border-radius:6px; color:#ff3860; font-size:12px; font-family:'JetBrains Mono',monospace;"></div>
+
 <div id="main">
   <div id="sliderWrap">
     <div class="slider-header">
@@ -836,9 +838,16 @@ async function fetchAndRender(start, end, animate) {
   if (end)   params.set('end',   end);
 
   try {
-    data = await fetch(API + '/api/backtest?' + params).then(r => r.json());
+    const resp = await fetch(API + '/api/backtest?' + params);
+    data = await resp.json();
+    if (!resp.ok) {
+      showError(data.detail || `Server error ${resp.status}`);
+      setLoading(false);
+      return;
+    }
+    hideError();
   } catch (e) {
-    console.error(e);
+    showError(`Could not reach the API — is the server running? (${e.message})`);
     setLoading(false);
     return;
   }
@@ -858,6 +867,16 @@ async function fetchAndRender(start, end, animate) {
     gsap.fromTo([document.getElementById('equityCard'), document.getElementById('priceCard')],
       { opacity: 0.4 }, { opacity: 1, duration: 0.35, ease: 'power1.out' });
   }
+}
+
+// ── Error banner ─────────────────────────────────────────────────────────────
+function showError(msg) {
+  const el = document.getElementById('errorBanner');
+  el.textContent = '⚠ ' + msg;
+  el.style.display = 'block';
+}
+function hideError() {
+  document.getElementById('errorBanner').style.display = 'none';
 }
 
 // ── Help toggles ─────────────────────────────────────────────────────────────
