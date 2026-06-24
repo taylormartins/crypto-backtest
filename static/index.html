@@ -228,6 +228,60 @@ tbody td:first-child { text-align: left; color: var(--dim); }
 #tooltip .tt-date { color: var(--dim); margin-bottom: 4px; }
 #tooltip .tt-row { display: flex; justify-content: space-between; gap: 16px; }
 #tooltip .tt-label { color: var(--dim); }
+
+/* ── RESPONSIVE — mobile portrait ── */
+@media (max-width: 640px) {
+  /* Header: allow wrapping, hide stat pills (duplicated in cards below) */
+  #header {
+    flex-wrap: wrap;
+    height: auto;
+    min-height: 48px;
+    padding: 8px 12px;
+    gap: 6px;
+  }
+  .logo { font-size: 13px; }
+  .header-stats { display: none; }
+  #symbolSelect, #strategySelect {
+    flex: 1 1 120px;
+    font-size: 11px;
+    padding: 4px 6px;
+  }
+
+  /* Main: tighter padding */
+  #main { padding: 10px 12px 32px; }
+
+  /* Slider: tighter padding */
+  #sliderWrap { padding: 12px 14px 10px; }
+
+  /* Charts: shorter on small screens */
+  #equityCanvas { height: 180px !important; }
+  #priceCanvas  { height: 240px !important; }
+
+  /* Stats grid: 3 columns instead of 6 */
+  #statsGrid { grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .stat-card { padding: 10px 8px; }
+  .stat-card-label { font-size: 9px; }
+  .stat-card-value { font-size: 15px; }
+
+  /* Trade table: scrollable within container, hide low-priority columns */
+  #tableWrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  table { min-width: 480px; }
+  thead th, tbody td { padding: 6px 8px; font-size: 11px; }
+  /* Hide Duration (col 8) and Reason (col 9) */
+  table thead th:nth-child(8),
+  table tbody td:nth-child(8),
+  table thead th:nth-child(9),
+  table tbody td:nth-child(9) { display: none; }
+
+  /* Help rows: reduce min-width of key column */
+  .help-body .help-key,
+  .help-card-inner .help-key { min-width: 100px; }
+  .help-body .help-row,
+  .help-card-inner .help-row { font-size: 11px; }
+
+  /* Error banner */
+  #errorBanner { margin: 10px 12px; }
+}
 </style>
 </head>
 <body>
