@@ -7,9 +7,10 @@ from core.models import BaseStrategy, Trade
 
 
 class Backtester:
-    def __init__(self, capital: float = INITIAL_CAPITAL, risk: float = RISK_PER_TRADE):
+    def __init__(self, capital: float = INITIAL_CAPITAL, risk: float = RISK_PER_TRADE, fee_pct: float = 0.0):
         self.capital = capital
         self.risk = risk
+        self.fee_pct = fee_pct  # fraction, e.g. 0.001 for 0.1% per side
 
     def run(self, df: pd.DataFrame, strategy: BaseStrategy, symbol: str) -> list[Trade]:
         signals = strategy.generate_signals(df)
@@ -46,6 +47,9 @@ class Backtester:
                     open_trade.close(price, ts, "signal_exit")
 
                 if open_trade.closed:
+                    if self.fee_pct > 0:
+                        fee = (open_trade.entry_price + open_trade.exit_price) * open_trade.size * self.fee_pct
+                        open_trade.pnl -= fee
                     equity += open_trade.pnl
                     trades.append(open_trade)
                     open_trade = None

@@ -131,8 +131,11 @@ def api_symbols():
 def api_backtest(
     symbol: str = Query("BTC/USDT"),
     strategy: str = Query("hhhll"),
-    start: int = Query(None),   # ms epoch
-    end: int = Query(None),     # ms epoch
+    start: int = Query(None),        # ms epoch
+    end: int = Query(None),          # ms epoch
+    capital: float = Query(INITIAL_CAPITAL),  # starting equity in USDT
+    fee_pct: float = Query(0.0),     # fee per side as percentage (e.g. 0.1 = 0.1%)
+    risk_pct: float = Query(2.0),    # risk per trade as percentage (e.g. 2.0 = 2%)
 ):
     strat = STRATEGY_MAP.get(strategy, HHHLLStrategy)()
     try:
@@ -144,14 +147,16 @@ def api_backtest(
     start_ts = pd.Timestamp(start, unit="ms", tz="UTC") if start else full_df.index[0]
     end_ts   = pd.Timestamp(end,   unit="ms", tz="UTC") if end   else full_df.index[-1]
 
-    # Slice to the selected window and run a fresh backtest starting with
-    # INITIAL_CAPITAL — this answers "what if I put $10k in at this date?"
     df = full_df.loc[start_ts:end_ts]
-    trades = Backtester(capital=INITIAL_CAPITAL).run(df, strat, symbol)
+    trades = Backtester(
+        capital=capital,
+        risk=risk_pct / 100,
+        fee_pct=fee_pct / 100,
+    ).run(df, strat, symbol)
 
-    curve      = _build_equity_curve(trades, INITIAL_CAPITAL, df)
+    curve      = _build_equity_curve(trades, capital, df)
     dd_periods = _drawdown_periods(curve)
-    stats      = _compute_stats(trades, INITIAL_CAPITAL, curve)
+    stats      = _compute_stats(trades, capital, curve)
 
     candles = [
         {"t": int(ts.timestamp() * 1000),
@@ -191,7 +196,7 @@ def api_backtest(
         meta=dict(
             symbol=symbol,
             strategy=strat.name,
-            initial_capital=INITIAL_CAPITAL,
+            initial_capital=capital,
             start=candles[0]["t"] if candles else None,
             end=candles[-1]["t"]  if candles else None,
             full_start=int(full_df.index[0].timestamp() * 1000),
