@@ -195,4 +195,4 @@ def api_backtest(
 
 
 # Serve frontend — must be last so /api/* routes take precedence
-app.mount("/", StaticFiles(directory="static", html=True), name="static")
+app.mount("/", StaticFiles(directory=Path(__file__).parent / "static", html=True), name="static")
