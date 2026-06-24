@@ -1,0 +1,915 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Crypto Backtester</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/noUiSlider/15.7.1/nouislider.min.css">
+<style>
+:root {
+  --bg:       #0b0b10;
+  --surface:  #13131e;
+  --surface2: #1b1b2a;
+  --border:   #272740;
+  --text:     #c8c8dc;
+  --dim:      #5a5a78;
+  --green:    #00e876;
+  --red:      #ff3860;
+  --yellow:   #ffd000;
+  --blue:     #4da6ff;
+  --purple:   #9d71ff;
+  --font: 'JetBrains Mono', 'Courier New', monospace;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; background: var(--bg); color: var(--text); font-family: var(--font); font-size: 13px; }
+a { color: inherit; text-decoration: none; }
+
+/* ── HEADER ── */
+#header {
+  position: sticky; top: 0; z-index: 100;
+  display: flex; align-items: center; gap: 16px;
+  padding: 0 24px; height: 52px;
+  background: var(--surface); border-bottom: 1px solid var(--border);
+}
+.logo { font-size: 15px; font-weight: 700; letter-spacing: 2px; color: var(--green); white-space: nowrap; }
+.logo span { color: var(--dim); }
+#symbolSelect, #strategySelect {
+  background: var(--surface2); border: 1px solid var(--border);
+  color: var(--text); font-family: var(--font); font-size: 12px;
+  padding: 4px 8px; border-radius: 4px; cursor: pointer; outline: none;
+}
+#symbolSelect:focus, #strategySelect:focus { border-color: var(--green); }
+.header-stats { display: flex; gap: 12px; margin-left: auto; }
+.hstat {
+  display: flex; align-items: center; gap: 6px;
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 4px; padding: 4px 10px;
+}
+.hstat-label { color: var(--dim); font-size: 10px; text-transform: uppercase; letter-spacing: 1px; }
+.hstat-value { font-size: 13px; font-weight: 600; }
+.pos { color: var(--green); }
+.neg { color: var(--red); }
+.neu { color: var(--yellow); }
+
+/* ── MAIN LAYOUT ── */
+#main { max-width: 1440px; margin: 0 auto; padding: 20px 24px 40px; }
+
+/* ── SLIDER ── */
+#sliderWrap {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 6px; padding: 16px 20px 12px; margin-bottom: 16px;
+}
+.slider-header { display: flex; justify-content: space-between; margin-bottom: 10px; }
+.slider-header span { color: var(--dim); font-size: 11px; }
+#dateSlider { margin: 0 8px; }
+.noUi-target { background: var(--surface2); border: 1px solid var(--border); box-shadow: none; height: 4px; }
+.noUi-connect { background: var(--green); }
+.noUi-handle {
+  background: var(--green); border: none; box-shadow: none;
+  width: 14px !important; height: 14px !important;
+  top: -5px !important; right: -7px !important; border-radius: 50%;
+  cursor: ew-resize;
+}
+.noUi-handle::before, .noUi-handle::after { display: none; }
+.slider-labels { display: flex; justify-content: space-between; margin-top: 8px; }
+.slider-labels span { font-size: 11px; color: var(--dim); }
+
+/* ── CHARTS ── */
+.chart-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 6px; padding: 12px 16px; margin-bottom: 12px;
+  position: relative; overflow: hidden;
+}
+.chart-title {
+  font-size: 10px; text-transform: uppercase; letter-spacing: 1.5px;
+  color: var(--dim); margin-bottom: 10px;
+}
+.chart-canvas-wrap { position: relative; }
+#equityCanvas { height: 240px !important; }
+#priceCanvas  { height: 360px !important; }
+
+/* shimmer */
+.shimmer::after {
+  content: ''; position: absolute; inset: 0;
+  background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.04) 50%, transparent 100%);
+  background-size: 200% 100%;
+  animation: shimmer 1.2s infinite;
+}
+@keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
+
+/* ── STATS CARDS ── */
+#statsGrid {
+  display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px;
+  margin-bottom: 16px;
+}
+.stat-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 6px; padding: 14px 12px;
+  opacity: 0; transform: translateY(12px);
+}
+.stat-card-label { font-size: 10px; color: var(--dim); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; }
+.stat-card-value { font-size: 18px; font-weight: 700; line-height: 1; }
+
+/* ── TRADE TABLE ── */
+#tradeSection {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 6px; overflow: hidden;
+}
+.trade-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 16px; border-bottom: 1px solid var(--border);
+}
+.trade-header span { font-size: 10px; color: var(--dim); text-transform: uppercase; letter-spacing: 1px; }
+#tradeCount { color: var(--text); }
+#tableWrap { max-height: 380px; overflow-y: auto; }
+#tableWrap::-webkit-scrollbar { width: 6px; }
+#tableWrap::-webkit-scrollbar-track { background: var(--surface2); }
+#tableWrap::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+table { width: 100%; border-collapse: collapse; }
+thead th {
+  position: sticky; top: 0; z-index: 2;
+  background: var(--surface2); padding: 8px 12px;
+  font-size: 10px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 1px; color: var(--dim); text-align: right;
+  white-space: nowrap;
+}
+thead th:first-child { text-align: left; }
+tbody tr {
+  border-bottom: 1px solid var(--border);
+  cursor: pointer; transition: background 0.15s;
+}
+tbody tr:hover { background: var(--surface2); }
+tbody tr.active { background: rgba(0,232,118,0.06) !important; outline: 1px solid rgba(0,232,118,0.3); outline-offset: -1px; }
+tbody tr.win td.pnl-cell { color: var(--green); }
+tbody tr.loss td.pnl-cell { color: var(--red); }
+tbody td {
+  padding: 7px 12px; font-size: 12px; text-align: right;
+  border-right: 1px solid transparent;
+}
+tbody td:first-child { text-align: left; color: var(--dim); }
+.side-long  { color: var(--green); font-weight: 600; }
+.side-short { color: var(--red);   font-weight: 600; }
+
+/* ── HELP DROPDOWNS ── */
+.help-toggle {
+  display: flex; align-items: center; gap: 6px;
+  width: 100%; margin-top: 12px;
+  background: none; border: none; border-top: 1px solid var(--border);
+  padding: 8px 0 0; cursor: pointer; color: var(--dim);
+  font-family: var(--font); font-size: 10px; text-transform: uppercase;
+  letter-spacing: 1px; transition: color 0.15s;
+}
+.help-toggle:hover { color: var(--text); }
+.help-toggle .ht-icon {
+  display: inline-block; font-style: normal;
+  transition: transform 0.25s ease; line-height: 1;
+}
+.help-toggle.open .ht-icon { transform: rotate(180deg); }
+.help-toggle.open { color: var(--green); border-top-color: rgba(0,232,118,0.25); }
+
+.help-panel {
+  overflow: hidden; max-height: 0;
+  transition: max-height 0.35s ease, opacity 0.25s ease;
+  opacity: 0;
+}
+.help-panel.open { opacity: 1; }
+
+.help-body {
+  margin-top: 12px; padding: 14px 16px;
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 4px; line-height: 1.7;
+}
+.help-body p { margin-bottom: 8px; color: var(--text); font-size: 12px; }
+.help-body p:last-child { margin-bottom: 0; }
+.help-body strong { color: var(--green); font-weight: 600; }
+.help-body .help-row { display: flex; gap: 10px; margin-bottom: 6px; font-size: 12px; }
+.help-body .help-key { color: var(--green); min-width: 130px; flex-shrink: 0; }
+.help-body .help-val { color: var(--text); }
+
+/* standalone help card (for stats grid) */
+.help-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 6px; margin-bottom: 16px; overflow: hidden;
+}
+.help-card-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 16px; cursor: pointer; transition: background 0.15s;
+}
+.help-card-header:hover { background: var(--surface2); }
+.help-card-title { font-size: 10px; color: var(--dim); text-transform: uppercase; letter-spacing: 1px; }
+.help-card-icon {
+  font-style: normal; color: var(--dim);
+  transition: transform 0.25s ease, color 0.15s;
+}
+.help-card-header.open .help-card-icon { transform: rotate(180deg); color: var(--green); }
+.help-card-header.open .help-card-title { color: var(--green); }
+.help-card-body {
+  max-height: 0; overflow: hidden; opacity: 0;
+  transition: max-height 0.35s ease, opacity 0.25s ease;
+}
+.help-card-body.open { opacity: 1; }
+.help-card-inner { padding: 14px 16px; border-top: 1px solid var(--border); }
+.help-card-inner p { font-size: 12px; line-height: 1.7; color: var(--text); margin-bottom: 8px; }
+.help-card-inner p:last-child { margin-bottom: 0; }
+.help-card-inner strong { color: var(--green); font-weight: 600; }
+.help-card-inner .help-row { display: flex; gap: 10px; margin-bottom: 6px; font-size: 12px; }
+.help-card-inner .help-key { color: var(--green); min-width: 140px; flex-shrink: 0; }
+.help-card-inner .help-val { color: var(--text); }
+
+/* ── TOOLTIP ── */
+#tooltip {
+  position: fixed; pointer-events: none; z-index: 200;
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 4px; padding: 8px 12px; font-size: 11px;
+  display: none; min-width: 140px;
+}
+#tooltip .tt-date { color: var(--dim); margin-bottom: 4px; }
+#tooltip .tt-row { display: flex; justify-content: space-between; gap: 16px; }
+#tooltip .tt-label { color: var(--dim); }
+</style>
+</head>
+<body>
+
+<div id="header">
+  <div class="logo">BACK<span>//</span>TEST</div>
+  <select id="symbolSelect"></select>
+  <select id="strategySelect"></select>
+  <div class="header-stats">
+    <div class="hstat"><span class="hstat-label">Return</span><span class="hstat-value" id="h-return">—</span></div>
+    <div class="hstat"><span class="hstat-label">Sharpe</span><span class="hstat-value" id="h-sharpe">—</span></div>
+    <div class="hstat"><span class="hstat-label">Max DD</span><span class="hstat-value" id="h-dd">—</span></div>
+  </div>
+</div>
+
+<div id="main">
+  <div id="sliderWrap">
+    <div class="slider-header">
+      <span>DATE RANGE</span>
+      <span id="sliderRangeLabel">—</span>
+    </div>
+    <div id="dateSlider"></div>
+    <div class="slider-labels">
+      <span id="sliderStart">—</span>
+      <span id="sliderEnd">—</span>
+    </div>
+  </div>
+
+  <div class="chart-card" id="equityCard">
+    <div class="chart-title">Equity Curve</div>
+    <div class="chart-canvas-wrap"><canvas id="equityCanvas"></canvas></div>
+    <button class="help-toggle" data-panel="help-equity">
+      <i class="ht-icon">&#9660;</i> How to read this chart
+    </button>
+    <div class="help-panel" id="help-equity">
+      <div class="help-body">
+        <p>The <strong>equity curve</strong> shows your portfolio value over time, starting from the initial capital at the left edge of the selected date range. Each data point reflects the account balance after any trade that closed on that candle.</p>
+        <p><strong>Green fill</strong> means the portfolio is above its starting value — you're in profit. <strong>Red fill</strong> means it has dropped below — you're in a loss relative to where you started in this window.</p>
+        <p><strong>Red shaded regions</strong> are drawdown periods: stretches where equity fell from a previous peak and had not yet recovered. The depth and duration of these bands show how painful the strategy can be to hold through.</p>
+        <p>Use <strong>scroll to zoom</strong> and <strong>click-drag to pan</strong> the view. The equity chart and the price chart below share the same x-axis zoom level and a synced crosshair — hover either chart to see the matching moment on both.</p>
+        <div class="help-row"><span class="help-key">Dashed baseline</span><span class="help-val">Starting equity for this window — the break-even line.</span></div>
+        <div class="help-row"><span class="help-key">Flat sections</span><span class="help-val">Periods with no open or closed trades — cash is idle.</span></div>
+        <div class="help-row"><span class="help-key">Sharp steps up/down</span><span class="help-val">A trade just closed at take-profit or stop-loss.</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="chart-card" id="priceCard">
+    <div class="chart-title">Price &amp; Trades</div>
+    <div class="chart-canvas-wrap"><canvas id="priceCanvas"></canvas></div>
+    <button class="help-toggle" data-panel="help-price">
+      <i class="ht-icon">&#9660;</i> How to read this chart
+    </button>
+    <div class="help-panel" id="help-price">
+      <div class="help-body">
+        <p>The <strong>candlestick chart</strong> shows raw OHLC price action for the selected symbol. Each candle covers one 15-minute interval. <strong>Green candles</strong> closed higher than they opened; <strong>red candles</strong> closed lower.</p>
+        <p>Trade signals from the strategy are overlaid directly on the price:</p>
+        <div class="help-row"><span class="help-key">&#9650; Green triangle</span><span class="help-val">Strategy entered a <strong>long</strong> position at this price and time.</span></div>
+        <div class="help-row"><span class="help-key">&#9660; Red triangle</span><span class="help-val">Strategy <strong>exited</strong> a position (stop-loss, take-profit, or opposite signal).</span></div>
+        <p>The chart starts zoomed to the most recent 200 candles. <strong>Scroll to zoom</strong> in or out, and <strong>click-drag to pan</strong> through history. Zoom is synced with the equity curve above.</p>
+        <p><strong>Clicking a row in the Trade Log</strong> below will pan this chart to centre on that trade and highlight its entry and exit markers with a white border.</p>
+        <div class="help-row"><span class="help-key">Stop distance</span><span class="help-val">1× ATR from entry — the strategy risks this amount per trade.</span></div>
+        <div class="help-row"><span class="help-key">Take-profit</span><span class="help-val">2× ATR from entry — a 1:2 risk-reward ratio on every trade.</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="statsGrid">
+    <div class="stat-card" id="sc-winrate"><div class="stat-card-label">Win Rate</div><div class="stat-card-value" id="sv-winrate">—</div></div>
+    <div class="stat-card" id="sc-avgwin"><div class="stat-card-label">Avg Win</div><div class="stat-card-value pos" id="sv-avgwin">—</div></div>
+    <div class="stat-card" id="sc-avgloss"><div class="stat-card-label">Avg Loss</div><div class="stat-card-value neg" id="sv-avgloss">—</div></div>
+    <div class="stat-card" id="sc-pf"><div class="stat-card-label">Profit Factor</div><div class="stat-card-value" id="sv-pf">—</div></div>
+    <div class="stat-card" id="sc-dd"><div class="stat-card-label">Max Drawdown</div><div class="stat-card-value neg" id="sv-dd">—</div></div>
+    <div class="stat-card" id="sc-sharpe"><div class="stat-card-label">Sharpe Ratio</div><div class="stat-card-value" id="sv-sharpe">—</div></div>
+  </div>
+
+  <div class="help-card" id="statsHelpCard">
+    <div class="help-card-header" id="statsHelpToggle">
+      <span class="help-card-title">&#9660;&nbsp; What do these numbers mean?</span>
+      <i class="help-card-icon">&#9660;</i>
+    </div>
+    <div class="help-card-body" id="statsHelpBody">
+      <div class="help-card-inner">
+        <div class="help-row"><span class="help-key">Win Rate</span><span class="help-val">Percentage of closed trades that ended in profit. A strategy can be profitable with a win rate below 50% if winners are significantly larger than losers.</span></div>
+        <div class="help-row"><span class="help-key">Avg Win</span><span class="help-val">Mean dollar profit across all winning trades. Compare this to Avg Loss to understand the reward side of the risk-reward ratio.</span></div>
+        <div class="help-row"><span class="help-key">Avg Loss</span><span class="help-val">Mean dollar loss across all losing trades. This strategy targets 1× ATR as the stop distance, so Avg Loss reflects how volatile the asset was at entry.</span></div>
+        <div class="help-row"><span class="help-key">Profit Factor</span><span class="help-val">Total gross profit divided by total gross loss. A value above 1.0 means the strategy made more than it lost overall. Above 1.5 is generally considered solid; above 2.0 is strong.</span></div>
+        <div class="help-row"><span class="help-key">Max Drawdown</span><span class="help-val">The largest peak-to-trough decline in portfolio value within the selected window, expressed as a percentage. This is the worst-case loss a trader would have experienced holding the strategy.</span></div>
+        <div class="help-row"><span class="help-key">Sharpe Ratio</span><span class="help-val">Annualised return per unit of volatility, calculated from per-candle equity returns (365 × 96 periods/year for 15 m crypto). Above 1.0 is acceptable, above 2.0 is excellent. Does not account for trading fees or slippage.</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="tradeSection">
+    <div class="trade-header">
+      <span>Trade Log — <span id="tradeCount">0</span> trades</span>
+      <span id="stratLabel">—</span>
+    </div>
+    <div id="tradeHelpWrap" style="padding: 0 16px;">
+      <button class="help-toggle" data-panel="help-trades">
+        <i class="ht-icon">&#9660;</i> How to use the trade log
+      </button>
+      <div class="help-panel" id="help-trades">
+        <div class="help-body">
+          <p>Every row is one completed trade. <strong>Green rows</strong> were profitable; <strong>red rows</strong> were losses. The table is ordered chronologically — earliest trade at the top.</p>
+          <div class="help-row"><span class="help-key">Date</span><span class="help-val">Entry timestamp of the trade (UTC).</span></div>
+          <div class="help-row"><span class="help-key">Side</span><span class="help-val"><strong>LONG</strong> = bought expecting price to rise. <strong>SHORT</strong> = sold expecting price to fall.</span></div>
+          <div class="help-row"><span class="help-key">Entry / Exit</span><span class="help-val">Prices at which the position was opened and closed. Entry is always the closing price of the signal candle.</span></div>
+          <div class="help-row"><span class="help-key">PnL ($)</span><span class="help-val">Absolute dollar profit or loss for this trade, based on position size.</span></div>
+          <div class="help-row"><span class="help-key">PnL (%)</span><span class="help-val">Return as a percentage of the notional position value (entry price × size).</span></div>
+          <div class="help-row"><span class="help-key">Duration</span><span class="help-val">Time the position was held open, from entry candle to exit candle.</span></div>
+          <div class="help-row"><span class="help-key">Reason</span><span class="help-val"><strong>take_profit</strong> — hit the 2× ATR target. <strong>stop_loss</strong> — hit the 1× ATR stop. <strong>signal_exit</strong> — closed early by an opposing signal. <strong>end_of_data</strong> — still open when the data window ended.</span></div>
+          <p><strong>Click any row</strong> to pan the price chart to that trade, highlight its entry and exit markers, and pulse the row. This makes it easy to inspect exactly what the market was doing at the time of each decision.</p>
+        </div>
+      </div>
+    </div>
+    <div id="tableWrap">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th><th>Date</th><th>Side</th>
+            <th>Entry</th><th>Exit</th>
+            <th>PnL ($)</th><th>PnL (%)</th><th>Duration</th><th>Reason</th>
+          </tr>
+        </thead>
+        <tbody id="tradeBody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div id="tooltip">
+  <div class="tt-date" id="tt-date"></div>
+  <div class="tt-row"><span class="tt-label">Equity</span><span id="tt-equity"></span></div>
+  <div class="tt-row"><span class="tt-label">Open</span><span id="tt-o"></span></div>
+  <div class="tt-row"><span class="tt-label">High</span><span id="tt-h"></span></div>
+  <div class="tt-row"><span class="tt-label">Low</span><span id="tt-l"></span></div>
+  <div class="tt-row"><span class="tt-label">Close</span><span id="tt-c"></span></div>
+</div>
+
+<!-- CDN dependencies — order matters -->
+<script src="https://cdn.jsdelivr.net/npm/luxon@3.4.3/build/global/luxon.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-luxon@1.3.1/dist/chartjs-adapter-luxon.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-chart-financial@0.1.1/dist/chartjs-chart-financial.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/hammer.js/2.0.8/hammer.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@1.2.1/dist/chartjs-plugin-zoom.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@2.2.1/dist/chartjs-plugin-annotation.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/noUiSlider/15.7.1/nouislider.min.js"></script>
+
+<script>
+'use strict';
+const { DateTime } = luxon;
+// When opened as a file:// (preview panel) point at the running server;
+// when served by the server itself relative URLs are used automatically.
+const API = (location.protocol === 'file:') ? 'http://localhost:8001' : '';
+
+// ── State ─────────────────────────────────────────────────────────────────────
+let equityChart = null;
+let priceChart  = null;
+let slider      = null;
+let data        = null;          // latest API response
+let fullStart   = null;
+let fullEnd     = null;
+let activeTradeId = null;
+let sliderTimer   = null;
+let crossTs       = null;        // shared crosshair timestamp (ms)
+
+// ── Formatting ────────────────────────────────────────────────────────────────
+const fmt = {
+  date:  ms => DateTime.fromMillis(ms).toFormat('dd MMM yy HH:mm'),
+  dateS: ms => DateTime.fromMillis(ms).toFormat('dd MMM yy'),
+  usd:   v  => v == null ? '—' : (v >= 0 ? '+' : '') + '$' + Math.abs(v).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2}),
+  pct:   v  => v == null ? '—' : (v >= 0 ? '+' : '') + v.toFixed(2) + '%',
+  price: v  => v == null ? '—' : v.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:4}),
+  dur:   m  => {
+    if (m == null) return '—';
+    const d = Math.floor(m / 1440), h = Math.floor((m % 1440) / 60), mn = m % 60;
+    return d > 0 ? `${d}d ${h}h` : h > 0 ? `${h}h ${mn}m` : `${mn}m`;
+  },
+};
+
+// ── Crosshair plugin (syncs both charts) ──────────────────────────────────────
+const crosshairPlugin = {
+  id: 'crosshair',
+  afterEvent(chart, { event: e }) {
+    const ca = chart.chartArea;
+    if (!ca) return;
+    if (e.type === 'mousemove' && e.x >= ca.left && e.x <= ca.right) {
+      crossTs = chart.scales.x.getValueForPixel(e.x);
+      [equityChart, priceChart].forEach(c => { if (c && c !== chart) c.update('none'); });
+    } else if (e.type === 'mouseout') {
+      crossTs = null;
+      [equityChart, priceChart].forEach(c => { if (c && c !== chart) c.update('none'); });
+    }
+  },
+  afterDraw(chart) {
+    if (crossTs == null) return;
+    const px = chart.scales.x.getPixelForValue(crossTs);
+    const { top, bottom } = chart.chartArea;
+    if (px < chart.chartArea.left || px > chart.chartArea.right) return;
+    const ctx = chart.ctx;
+    ctx.save();
+    ctx.strokeStyle = 'rgba(200,200,220,0.25)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([5, 5]);
+    ctx.beginPath(); ctx.moveTo(px, top); ctx.lineTo(px, bottom); ctx.stroke();
+    ctx.restore();
+  },
+};
+
+// ── Trade marker plugin (draws triangles on price chart) ─────────────────────
+const tradeMarkerPlugin = {
+  id: 'tradeMarkers',
+  afterDraw(chart) {
+    if (!chart._tradeMarkers) return;
+    const { ctx, scales: { x, y }, chartArea: { left, right } } = chart;
+    ctx.save();
+    for (const m of chart._tradeMarkers) {
+      const px = x.getPixelForValue(m.t);
+      if (px < left || px > right) continue;
+      const py = y.getPixelForValue(m.price);
+      ctx.fillStyle = m.up ? 'rgba(0,232,118,0.9)' : 'rgba(255,56,96,0.9)';
+      // Draw triangle — up for entry, down for exit
+      const s = m.active ? 9 : 6;
+      ctx.beginPath();
+      if (m.up) {
+        ctx.moveTo(px,     py - s - 4);
+        ctx.lineTo(px - s, py + 2);
+        ctx.lineTo(px + s, py + 2);
+      } else {
+        ctx.moveTo(px,     py + s + 4);
+        ctx.lineTo(px - s, py - 2);
+        ctx.lineTo(px + s, py - 2);
+      }
+      ctx.closePath();
+      ctx.fill();
+      if (m.active) {
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+      }
+    }
+    ctx.restore();
+  },
+};
+
+Chart.register(crosshairPlugin, tradeMarkerPlugin);
+
+// ── Common chart options ──────────────────────────────────────────────────────
+function commonAxes(yTickFmt) {
+  return {
+    x: {
+      type: 'time',
+      time: { tooltipFormat: 'dd MMM yy HH:mm' },
+      grid: { color: 'rgba(39,39,64,0.6)', borderColor: 'transparent' },
+      ticks: { color: '#5a5a78', maxRotation: 0, autoSkip: true, maxTicksLimit: 8, font: { family: 'JetBrains Mono', size: 10 } },
+    },
+    y: {
+      position: 'right',
+      grid: { color: 'rgba(39,39,64,0.6)', borderColor: 'transparent' },
+      ticks: { color: '#5a5a78', font: { family: 'JetBrains Mono', size: 10 }, callback: yTickFmt },
+    },
+  };
+}
+
+function zoomOptions(fullS, fullE) {
+  return {
+    zoom: { wheel: { enabled: true }, pinch: { enabled: true }, mode: 'x' },
+    pan:  { enabled: true, mode: 'x' },
+    limits: { x: { min: fullS, max: fullE, minRange: 50 * 15 * 60 * 1000 } },
+  };
+}
+
+// ── Equity chart ──────────────────────────────────────────────────────────────
+function buildEquityChart(d) {
+  const baseline = d.meta.initial_capital;
+  const pts = d.equity_curve.map(p => ({ x: p.t, y: p.v }));
+
+  // Annotation: drawdown boxes
+  const annotations = {};
+  d.drawdown_periods.forEach((dd, i) => {
+    annotations[`dd${i}`] = {
+      type: 'box',
+      xMin: dd.start, xMax: dd.end,
+      backgroundColor: 'rgba(255,56,96,0.07)',
+      borderWidth: 0,
+    };
+  });
+  // Baseline rule
+  annotations.base = {
+    type: 'line', yMin: baseline, yMax: baseline,
+    borderColor: 'rgba(90,90,120,0.5)', borderWidth: 1, borderDash: [4, 4],
+  };
+
+  const cfg = {
+    type: 'line',
+    data: {
+      datasets: [{
+        data: pts,
+        parsing: false,
+        borderColor: '#00e876',
+        borderWidth: 1.5,
+        pointRadius: 0,
+        tension: 0,
+        segment: {
+          borderColor: ctx => ctx.p0.parsed.y >= baseline ? '#00e876' : '#ff3860',
+        },
+        fill: { target: { value: baseline }, above: 'rgba(0,232,118,0.08)', below: 'rgba(255,56,96,0.08)' },
+      }],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false, animation: false,
+      interaction: { mode: 'index', intersect: false },
+      scales: {
+        ...commonAxes(v => '$' + v.toLocaleString('en-US', { maximumFractionDigits: 0 })),
+      },
+      plugins: {
+        legend: { display: false },
+        tooltip: { enabled: false },
+        zoom: zoomOptions(fullStart, fullEnd),
+        annotation: { annotations },
+        crosshair: {},
+      },
+      onHover: (e, _, chart) => {
+        if (!e.native) return;
+        const pts2 = chart.getElementsAtEventForMode(e.native, 'index', { intersect: false }, false);
+        if (!pts2.length) { document.getElementById('tooltip').style.display = 'none'; return; }
+        const di = pts2[0].index;
+        const pt = d.equity_curve[di];
+        if (!pt) return;
+        showTooltip(e.native, { date: pt.t, equity: pt.v });
+      },
+    },
+  };
+
+  if (equityChart) equityChart.destroy();
+  equityChart = new Chart(document.getElementById('equityCanvas'), cfg);
+}
+
+// ── Price / candlestick chart ─────────────────────────────────────────────────
+function buildPriceChart(d) {
+  const candles = d.candles.map(c => ({ x: c.t, o: c.o, h: c.h, l: c.l, c: c.c }));
+
+  // Trade markers
+  const markers = [];
+  for (const t of d.trades) {
+    const active = t.id === activeTradeId;
+    if (t.entry_time && t.entry_price != null)
+      markers.push({ t: t.entry_time, price: t.entry_price, up: true,  active, id: t.id });
+    if (t.exit_time  && t.exit_price  != null)
+      markers.push({ t: t.exit_time,  price: t.exit_price,  up: false, active, id: t.id });
+  }
+
+  // Show last ~200 candles initially
+  const initMin = candles.length > 200 ? candles[candles.length - 200].x : candles[0]?.x;
+  const initMax = candles[candles.length - 1]?.x;
+
+  const cfg = {
+    type: 'candlestick',
+    data: {
+      datasets: [{
+        data: candles,
+        parsing: false,
+        color: {
+          up:   '#00e876', down: '#ff3860',
+          unchanged: '#5a5a78',
+        },
+      }],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false, animation: false,
+      scales: {
+        x: {
+          ...commonAxes().x,
+          min: initMin, max: initMax,
+        },
+        y: {
+          ...commonAxes(v => fmt.price(v)).y,
+        },
+      },
+      plugins: {
+        legend: { display: false },
+        tooltip: { enabled: false },
+        zoom: zoomOptions(fullStart, fullEnd),
+        crosshair: {},
+      },
+      onHover: (e, _, chart) => {
+        if (!e.native) return;
+        const pts2 = chart.getElementsAtEventForMode(e.native, 'index', { intersect: false }, false);
+        if (!pts2.length) { document.getElementById('tooltip').style.display = 'none'; return; }
+        const di = pts2[0].index;
+        const c = d.candles[di];
+        if (!c) return;
+        showTooltip(e.native, { date: c.t, o: c.o, h: c.h, l: c.l, close: c.c });
+      },
+    },
+  };
+
+  if (priceChart) priceChart.destroy();
+  priceChart = new Chart(document.getElementById('priceCanvas'), cfg);
+  priceChart._tradeMarkers = markers;
+}
+
+// ── Tooltip ───────────────────────────────────────────────────────────────────
+function showTooltip(event, info) {
+  const tip = document.getElementById('tooltip');
+  document.getElementById('tt-date').textContent = fmt.date(info.date);
+  const eq  = document.getElementById('tt-equity');
+  const to  = document.getElementById('tt-o');
+  const th  = document.getElementById('tt-h');
+  const tl  = document.getElementById('tt-l');
+  const tc  = document.getElementById('tt-c');
+  eq.textContent = info.equity != null ? '$' + info.equity.toLocaleString('en-US', {minimumFractionDigits:2}) : '';
+  to.textContent = info.o  != null ? fmt.price(info.o)  : '';
+  th.textContent = info.h  != null ? fmt.price(info.h)  : '';
+  tl.textContent = info.l  != null ? fmt.price(info.l)  : '';
+  tc.textContent = info.close != null ? fmt.price(info.close) : '';
+  // Hide rows that have no data
+  [['tt-equity',eq], ['tt-o',to]].forEach(([, el]) => {
+    el.closest('.tt-row').style.display = el.textContent ? '' : 'none';
+  });
+  tip.style.display = 'block';
+  const x = Math.min(event.clientX + 14, window.innerWidth - 160);
+  const y = Math.min(event.clientY + 14, window.innerHeight - 120);
+  tip.style.left = x + 'px';
+  tip.style.top  = y + 'px';
+}
+document.addEventListener('mouseleave', () => { document.getElementById('tooltip').style.display = 'none'; });
+
+// ── Stats cards ───────────────────────────────────────────────────────────────
+function renderCards(stats, animate) {
+  const winRate = stats.win_rate;
+  const pfColor = stats.profit_factor >= 1 ? 'pos' : 'neg';
+  const shrpColor = stats.sharpe_ratio >= 1 ? 'pos' : stats.sharpe_ratio >= 0 ? 'neu' : 'neg';
+
+  setCard('winrate', winRate.toFixed(1) + '%', winRate >= 50 ? 'pos' : 'neg');
+  setCard('avgwin',  fmt.usd(stats.avg_win),  'pos');
+  setCard('avgloss', fmt.usd(stats.avg_loss), 'neg');
+  setCard('pf',      stats.profit_factor.toFixed(2), pfColor);
+  setCard('dd',      fmt.pct(stats.max_drawdown_pct), 'neg');
+  setCard('sharpe',  stats.sharpe_ratio.toFixed(2), shrpColor);
+
+  if (animate) {
+    gsap.to('.stat-card', {
+      opacity: 1, y: 0, duration: 0.5, stagger: 0.07,
+      ease: 'power2.out', delay: 0.2,
+    });
+  } else {
+    document.querySelectorAll('.stat-card').forEach(el => {
+      el.style.opacity = 1; el.style.transform = 'none';
+    });
+  }
+}
+
+function setCard(key, value, colorClass) {
+  const el = document.getElementById('sv-' + key);
+  el.textContent = value;
+  el.className = 'stat-card-value ' + (colorClass || '');
+}
+
+// ── Header stats with count-up ────────────────────────────────────────────────
+function updateHeader(stats, meta, animate) {
+  const ret = stats.total_return_pct;
+  const sharpe = stats.sharpe_ratio;
+  const dd = stats.max_drawdown_pct;
+
+  if (animate) {
+    const obj = { ret: 0, sharpe: 0, dd: 0 };
+    gsap.to(obj, {
+      ret, sharpe, dd,
+      duration: 1.2, ease: 'power2.out',
+      onUpdate() {
+        setHStat('h-return', obj.ret.toFixed(2) + '%', obj.ret >= 0);
+        setHStat('h-sharpe', obj.sharpe.toFixed(2), obj.sharpe >= 1);
+        setHStat('h-dd',     obj.dd.toFixed(2) + '%', false);
+      },
+    });
+  } else {
+    setHStat('h-return', fmt.pct(ret),       ret >= 0);
+    setHStat('h-sharpe', sharpe.toFixed(2),   sharpe >= 1);
+    setHStat('h-dd',     fmt.pct(dd),         false);
+  }
+
+  document.getElementById('stratLabel').textContent = meta.strategy;
+}
+
+function setHStat(id, text, positive) {
+  const el = document.getElementById(id);
+  el.textContent = text;
+  el.className = 'hstat-value ' + (positive ? 'pos' : 'neg');
+}
+
+// ── Trade table ───────────────────────────────────────────────────────────────
+function renderTable(trades) {
+  document.getElementById('tradeCount').textContent = trades.length;
+  const tbody = document.getElementById('tradeBody');
+  tbody.innerHTML = '';
+  trades.forEach(t => {
+    const win = t.pnl >= 0;
+    const tr = document.createElement('tr');
+    tr.className = win ? 'win' : 'loss';
+    if (t.id === activeTradeId) tr.classList.add('active');
+    tr.dataset.id = t.id;
+    tr.innerHTML = `
+      <td>${t.id}</td>
+      <td>${fmt.date(t.entry_time)}</td>
+      <td class="${t.side === 'long' ? 'side-long' : 'side-short'}">${t.side.toUpperCase()}</td>
+      <td>${fmt.price(t.entry_price)}</td>
+      <td>${fmt.price(t.exit_price)}</td>
+      <td class="pnl-cell">${fmt.usd(t.pnl)}</td>
+      <td class="pnl-cell">${fmt.pct(t.pnl_pct)}</td>
+      <td>${fmt.dur(t.duration_mins)}</td>
+      <td style="color:var(--dim)">${t.exit_reason || '—'}</td>
+    `;
+    tr.addEventListener('click', () => highlightTrade(t));
+    tbody.appendChild(tr);
+  });
+}
+
+// ── Trade highlight ───────────────────────────────────────────────────────────
+function highlightTrade(t) {
+  activeTradeId = t.id;
+
+  // Update table highlight
+  document.querySelectorAll('#tradeBody tr').forEach(row => {
+    row.classList.toggle('active', +row.dataset.id === t.id);
+  });
+
+  // Update price chart markers
+  if (priceChart?._tradeMarkers) {
+    priceChart._tradeMarkers.forEach(m => m.active = m.id === t.id);
+    priceChart.update('none');
+  }
+
+  // Pan price chart to show the trade
+  if (priceChart && t.entry_time) {
+    const halfWin = 50 * 15 * 60 * 1000;
+    const mid = t.exit_time ? (t.entry_time + t.exit_time) / 2 : t.entry_time;
+    priceChart.zoomScale('x', { min: mid - halfWin, max: mid + halfWin }, 'none');
+  }
+
+  // GSAP pulse on the active table row
+  const activeRow = document.querySelector('#tradeBody tr.active');
+  if (activeRow) {
+    gsap.fromTo(activeRow, { backgroundColor: 'rgba(0,232,118,0.25)' },
+      { backgroundColor: 'rgba(0,232,118,0.06)', duration: 0.8, ease: 'power2.out' });
+    activeRow.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+}
+
+// ── Date slider ───────────────────────────────────────────────────────────────
+function initSlider(fs, fe) {
+  fullStart = fs; fullEnd = fe;
+  if (slider) { slider.destroy(); slider = null; }
+
+  const el = document.getElementById('dateSlider');
+  slider = noUiSlider.create(el, {
+    start: [fs, fe],
+    connect: true,
+    range: { min: fs, max: fe },
+    step: 15 * 60 * 1000,
+    behaviour: 'drag',
+  });
+
+  slider.on('update', (values) => {
+    const [s, e] = values.map(Number);
+    document.getElementById('sliderStart').textContent = fmt.dateS(s);
+    document.getElementById('sliderEnd').textContent   = fmt.dateS(e);
+    const days = Math.round((e - s) / 86400000);
+    document.getElementById('sliderRangeLabel').textContent = `${days} days`;
+  });
+
+  slider.on('change', (values) => {
+    clearTimeout(sliderTimer);
+    sliderTimer = setTimeout(() => fetchAndRender(Math.round(values[0]), Math.round(values[1])), 300);
+  });
+}
+
+// ── Loading shimmer ───────────────────────────────────────────────────────────
+function setLoading(on) {
+  ['equityCard', 'priceCard'].forEach(id => {
+    document.getElementById(id).classList.toggle('shimmer', on);
+  });
+}
+
+// ── Selector population ───────────────────────────────────────────────────────
+function populateSelects(symbols, strategies) {
+  const sym = document.getElementById('symbolSelect');
+  const str = document.getElementById('strategySelect');
+  symbols.forEach(s => { const o = document.createElement('option'); o.value = o.textContent = s; sym.appendChild(o); });
+  strategies.forEach(s => { const o = document.createElement('option'); o.value = o.textContent = s; str.appendChild(o); });
+  sym.addEventListener('change', () => fetchAndRender(null, null));
+  str.addEventListener('change', () => fetchAndRender(null, null));
+}
+
+// ── Main fetch + render cycle ─────────────────────────────────────────────────
+async function fetchAndRender(start, end, animate) {
+  setLoading(true);
+
+  const sym  = document.getElementById('symbolSelect').value;
+  const strat = document.getElementById('strategySelect').value;
+  const params = new URLSearchParams({ symbol: sym, strategy: strat });
+  if (start) params.set('start', start);
+  if (end)   params.set('end',   end);
+
+  try {
+    data = await fetch(API + '/api/backtest?' + params).then(r => r.json());
+  } catch (e) {
+    console.error(e);
+    setLoading(false);
+    return;
+  }
+
+  const isInit = !fullStart;
+  if (isInit) initSlider(data.meta.full_start, data.meta.full_end);
+
+  setLoading(false);
+
+  buildEquityChart(data);
+  buildPriceChart(data);
+  renderCards(data.stats, isInit);
+  renderTable(data.trades);
+  updateHeader(data.stats, data.meta, isInit);
+
+  if (!isInit) {
+    gsap.fromTo([document.getElementById('equityCard'), document.getElementById('priceCard')],
+      { opacity: 0.4 }, { opacity: 1, duration: 0.35, ease: 'power1.out' });
+  }
+}
+
+// ── Help toggles ─────────────────────────────────────────────────────────────
+function initHelpToggles() {
+  // Chart-card toggles (button.help-toggle → sibling .help-panel)
+  document.querySelectorAll('.help-toggle').forEach(btn => {
+    const panel = document.getElementById(btn.dataset.panel);
+    if (!panel) return;
+    btn.addEventListener('click', () => {
+      const opening = !btn.classList.contains('open');
+      btn.classList.toggle('open', opening);
+      if (opening) {
+        panel.style.maxHeight = panel.scrollHeight + 'px';
+        panel.classList.add('open');
+        gsap.fromTo(panel, { opacity: 0, y: -6 }, { opacity: 1, y: 0, duration: 0.3, ease: 'power2.out' });
+      } else {
+        gsap.to(panel, {
+          opacity: 0, duration: 0.2, ease: 'power1.in',
+          onComplete() { panel.style.maxHeight = '0'; panel.classList.remove('open'); },
+        });
+      }
+    });
+  });
+
+  // Stats help card (separate card below the grid)
+  const statsToggle = document.getElementById('statsHelpToggle');
+  const statsBody   = document.getElementById('statsHelpBody');
+  if (statsToggle && statsBody) {
+    statsToggle.addEventListener('click', () => {
+      const opening = !statsToggle.classList.contains('open');
+      statsToggle.classList.toggle('open', opening);
+      if (opening) {
+        statsBody.style.maxHeight = statsBody.scrollHeight + 'px';
+        statsBody.classList.add('open');
+        gsap.fromTo(statsBody, { opacity: 0, y: -6 }, { opacity: 1, y: 0, duration: 0.3, ease: 'power2.out' });
+      } else {
+        gsap.to(statsBody, {
+          opacity: 0, duration: 0.2, ease: 'power1.in',
+          onComplete() { statsBody.style.maxHeight = '0'; statsBody.classList.remove('open'); },
+        });
+      }
+    });
+  }
+}
+
+// ── Boot ──────────────────────────────────────────────────────────────────────
+(async () => {
+  const meta = await fetch(API + '/api/symbols').then(r => r.json());
+  populateSelects(meta.symbols, meta.strategies);
+  initHelpToggles();
+  await fetchAndRender(null, null, true);
+})();
+</script>
+</body>
+</html>
