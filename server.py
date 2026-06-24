@@ -31,14 +31,17 @@ STRATEGY_MAP: dict = {
     "hhhll": HHHLLStrategy,
 }
 
-# ── In-memory OHLCV cache — persists for the server's lifetime ───────────────
-_ohlcv_cache: dict[str, pd.DataFrame] = {}
+# ── In-memory OHLCV cache — refreshes every 15 minutes ──────────────────────
+_CACHE_TTL = 15 * 60  # seconds
+_ohlcv_cache: dict[str, tuple[pd.DataFrame, float]] = {}  # symbol -> (df, fetched_at)
 
 
 def _get_ohlcv(symbol: str) -> pd.DataFrame:
-    if symbol not in _ohlcv_cache:
-        _ohlcv_cache[symbol] = fetch_ohlcv(symbol)
-    return _ohlcv_cache[symbol]
+    import time
+    entry = _ohlcv_cache.get(symbol)
+    if entry is None or time.time() - entry[1] > _CACHE_TTL:
+        _ohlcv_cache[symbol] = (fetch_ohlcv(symbol), time.time())
+    return _ohlcv_cache[symbol][0]
 
 
 # ── Metrics helpers ───────────────────────────────────────────────────────────
