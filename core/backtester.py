@@ -85,6 +85,9 @@ class Backtester:
         if open_trade and not open_trade.closed:
             last_ts = df.index[-1]
             open_trade.close(df.iloc[-1]["close"], last_ts, "end_of_data")
+            if self.fee_pct > 0:
+                fee = (open_trade.entry_price + open_trade.exit_price) * open_trade.size * self.fee_pct
+                open_trade.pnl -= fee
             trades.append(open_trade)
 
         return trades
